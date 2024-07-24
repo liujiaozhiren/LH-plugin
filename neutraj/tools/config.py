@@ -33,7 +33,7 @@ else:
     mail_pre_degree = 8
 
 # Test Config
-datalength = 10000
+datalength = 100000
 em_batch = 500
 test_num = 100
 sqrt=8

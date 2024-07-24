@@ -10,7 +10,7 @@ This repository showcases the LH-plugin currently. The LH-plugin has been adapte
 ### TrajGAT
 To use the TrajGAT model, follow these steps:
 ```
-cd trajGAT
+cd TrajGAT
 ...envs/{env_name}/bin/python main.py -L 1 -s {sim_func} -c {city} --other_args {argsvalue}            # with LH-plugin
 ...envs/{env_name}/bin/python main.py -L 0 -s {sim_func} -c {city} --other_args {argsvalue}            # without LH-plugin
 ```

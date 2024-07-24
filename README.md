@@ -38,3 +38,14 @@ cd Traj2SimVec
 envs/{env_name}/bin/python main.py -L 1 -c {config.yaml|config-DITA.yaml|config-*.yaml}             # with LH-plugin
 envs/{env_name}/bin/python main.py -L 0 -c {config.yaml|config-DITA.yaml|config-*.yaml}             # without LH-plugin
 ```
+
+## Data Preparation
+
+
+To prepare your data for use with the LH-plugin, follow these instructions:
+
+1. Place your dataset in the directory structure: `data_set/{city}/`.
+2. Save your trajectory data as `data_set/{city}/trajs.pkl`.
+3. Name your similarity data according to `data_set/{city}/{sim}.pkl`.
+
+For preprocessing data for the ST2Vec model, please refer to the instructions provided in `ST2Vec/README.md`.

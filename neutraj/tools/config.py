@@ -4,13 +4,13 @@ import torch.cuda
 fname = 'chengdu'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 distance_type = 'dtw'
-base_data_path = f'../data_set/{fname}/trajs_10000.pkl'
+base_data_path = f'../data_set/{fname}/trajs.pkl'
 neutraj_data_tmp = '../data_set/neutraj/'
 
 corrdatapath = neutraj_data_tmp + f'{fname}_traj_coord'
 gridxypath = neutraj_data_tmp + f'{fname}_traj_grid'
 
-distancepath = f'../data_set/{fname}/{distance_type}_10000x10000.pkl'
+distancepath = f'../data_set/{fname}/{distance_type}.pkl'
 
 log_root = f'./log/'
 
@@ -77,10 +77,10 @@ def config_to_str():
 
 def update():
     global base_data_path, corrdatapath, gridxypath, distancepath, log_root, traj_index_path, data_type, mail_pre_degree
-    base_data_path = f'../data_set/{fname}/trajs_10000.pkl'
+    base_data_path = f'../data_set/{fname}/trajs.pkl'
     corrdatapath = neutraj_data_tmp + f'{fname}_traj_coord'
     gridxypath = neutraj_data_tmp + f'{fname}_traj_grid'
-    distancepath = f'../data_set/{fname}/{distance_type}_10000x10000.pkl'
+    distancepath = f'../data_set/{fname}/{distance_type}.pkl'
     traj_index_path = neutraj_data_tmp + f'{fname}_traj_index'
 
     data_type = fname

@@ -229,7 +229,8 @@ class NeuTrajTrainer(object):
                                                                            max_neg_lenght))
 
             yield (
-                [np.array(anchor_input), np.array(trajs_input), np.array(negative_input), np.array(batch_trajs_input), (anchors_idx, trajs_idx, negs_idx)],
+                [np.array(anchor_input), np.array(trajs_input), np.array(negative_input), np.array(batch_trajs_input),
+                 (anchors_idx, trajs_idx, negs_idx)],
                 [anchor_input_len, trajs_input_len,
                  negative_input_len, batch_trajs_len],
                 [np.array(distance), np.array(negative_distance)])
@@ -248,14 +249,17 @@ class NeuTrajTrainer(object):
 
             embeddings = tm.test_comput_embeddings(
                 self, spatial_net, test_batch=config.em_batch)
-            # print('len(embeddings): {}'.format(len(embeddings)))
-            # print(embeddings.shape)
-            # print(embeddings[0].shape)
 
-            acc1 = tm.test_model(self, spatial_net.lorenz, embeddings,
-                                 test_range=range(len(self.train_seqs), len(self.train_seqs) + config.test_num),
-                                 similarity=True, print_batch=print_test, r10in50=True)
-            return acc1
+            embeddings = tm.test_comput_embeddings(
+                self, spatial_net, test_batch=config.em_batch)
+            data_l = len(self.padded_trajs)
+            acc = cal_top10_acc(self.distance, embeddings, [int(data_l * config.seeds_radio), data_l],
+                                spatial_net.lorenz, config.lorenz, _10in50=True)
+
+            # acc1 = tm.test_model(self, spatial_net.lorenz, embeddings,
+            #                      test_range=range(len(self.train_seqs), len(self.train_seqs) + config.test_num),
+            #                      similarity=True, print_batch=print_test, r10in50=True)
+            return acc
 
     def neutraj_train(self, print_batch=10, print_test=100, save_model=True, load_model=None,
                       in_cell_update=True, stard_LSTM=False):
@@ -295,7 +299,7 @@ class NeuTrajTrainer(object):
         best_10 = float('-inf')
         best_5 = float('-inf')
         bestndcg = float('-inf')
-        best10in50=float('-inf')
+        best10in50 = float('-inf')
         early_stop = 0
         print("start evaluation")
 
@@ -305,12 +309,12 @@ class NeuTrajTrainer(object):
                 print("Start training Epochs : {}".format(epoch))
                 # print len(torch.nonzero(spatial_net.rnn.cell.spatial_embedding))
                 start = time.time()
-                with tqdm(self.batch_generator(self.train_seqs, self.train_distance),'raw') as tq:
+                with tqdm(self.batch_generator(self.train_seqs, self.train_distance), 'raw') as tq:
                     for i, batch in enumerate(tq):
 
                         inputs_arrays, inputs_len_arrays, target_arrays = batch[0], batch[1], batch[2]
 
-                        spatial_net.lorenz.both_train(True,False)
+                        spatial_net.lorenz.both_train(True, False)
 
                         trajs_loss, negative_loss = spatial_net(
                             inputs_arrays, inputs_len_arrays)
@@ -359,13 +363,14 @@ class NeuTrajTrainer(object):
                     spatial_net.lorenz.both_train(False, True)
                     if epoch % 3 == 0:
                         all_loss, loss_cnt = 0, 0
-                        with tqdm(self.batch_generator(self.train_seqs, self.train_distance),'lorentz') as tq:
+                        with tqdm(self.batch_generator(self.train_seqs, self.train_distance), 'lorentz') as tq:
                             for i, batch in enumerate(tq):
                                 inputs_arrays, inputs_len_arrays, target_arrays = batch[0], batch[1], batch[2]
                                 trajs_loss, negative_loss = spatial_net(inputs_arrays, inputs_len_arrays)
                                 positive_distance_target = torch.Tensor(target_arrays[0]).view((-1, 1))
                                 negative_distance_target = torch.Tensor(target_arrays[1]).view((-1, 1))
-                                loss = mse_loss_m(trajs_loss, positive_distance_target, negative_loss, negative_distance_target)
+                                loss = mse_loss_m(trajs_loss, positive_distance_target, negative_loss,
+                                                  negative_distance_target)
                                 assert loss.isnan() != True
                                 all_loss += loss
                                 loss_cnt += 1
@@ -377,7 +382,6 @@ class NeuTrajTrainer(object):
                                             param.grad.data *= 0.1
                                     optimizer.step()
                                     all_loss = 0
-
 
             with torch.no_grad():
                 spatial_net.lorenz.both_train(False, False)
@@ -394,31 +398,34 @@ class NeuTrajTrainer(object):
                 #                      similarity=True, print_batch=print_test)
                 data_l = len(self.padded_trajs)
                 hr10, hr50, hr5, ndcg, _10in50, ret_metric = cal_top10_acc(self.distance, embeddings,
-                                                      [int(data_l * config.seeds_radio), data_l],
-                                                      spatial_net.lorenz, config.lorenz,_10in50=True)
+                                                                           [int(data_l * config.seeds_radio), data_l],
+                                                                           spatial_net.lorenz, config.lorenz,
+                                                                           _10in50=True)
 
                 print(f"gpu alloc:{torch.cuda.max_memory_allocated() / (1024 ** 3)}|"
                       f"resv:{torch.cuda.max_memory_reserved() / (1024 ** 3)}|cache:{torch.cuda.max_memory_cached() / (1024 ** 3)}")
                 torch.save(spatial_net.state_dict(), f'./model/test_time_{config.lorenz}.h5')
-
 
             best_10 = max(hr10, best_10)
             best_5 = max(hr5, best_5)
             best_50 = max(hr50, best_50)
             bestndcg = max(ndcg, bestndcg)
             best10in50 = max(_10in50, best10in50)
-            print(f"top5:{hr5}|{best_5},top10:{hr10}|{best_10},top50:{hr50}|{best_50},ndcg:{ndcg}|{bestndcg},top10in50:{_10in50}|{best10in50}")
+            print(
+                f"top5:{hr5}|{best_5},top10:{hr10}|{best_10},top50:{hr50}|{best_50},ndcg:{ndcg}|{bestndcg},top10in50:{_10in50}|{best10in50}")
             print(f"gpu alloc:{torch.cuda.max_memory_allocated() / (1024 ** 3)}|"
-                f"resv:{torch.cuda.max_memory_reserved() / (1024 ** 3)}|cache:{torch.cuda.max_memory_cached() / (1024 ** 3)}")
+                  f"resv:{torch.cuda.max_memory_reserved() / (1024 ** 3)}|cache:{torch.cuda.max_memory_cached() / (1024 ** 3)}")
             logging.info(
                 f"epoch{epoch + 1}->top5:{hr5}|{best_5},top10:{hr10}|{best_10},top50:{hr50}|{best_50},ndcg:{ndcg}|{bestndcg},top10in50:{_10in50}|{best10in50}")
             # print(acc1)
             if best_10 == hr10:
                 early_stop = 0
                 save_model_name = f"./model/{config.data_type}_{config.distance_type}_{config.lorenz}_best_model.h5"
-                print("better save:"+save_model_name)
+                print("better save:" + save_model_name)
                 torch.save(spatial_net.state_dict(), save_model_name)
-                pickle.dump(ret_metric, open(f"neutraj_metric_{config.fname}_{config.distance_type}_l{config.lorenz}_acc{hr10}", 'wb'))
+                pickle.dump(ret_metric,
+                            open(f"neutraj_metric_{config.fname}_{config.distance_type}_l{config.lorenz}_acc{hr10}",
+                                 'wb'))
             else:
                 print("Worse!")
                 early_stop += 1

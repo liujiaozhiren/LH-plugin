@@ -3,7 +3,7 @@ from torch.nn import Module, PairwiseDistance
 
 
 class WeightedRankingLoss(Module):
-    def __init__(self, sample_num, alpha, device, lorenz=None):
+    def __init__(self, sample_num, alpha, device, lorentz=None):
         super(WeightedRankingLoss, self).__init__()
         self.alpha = alpha
         weight = [1]
@@ -17,7 +17,7 @@ class WeightedRankingLoss(Module):
         # 权重归一化
         weight = torch.tensor(weight, dtype=torch.float)
         self.weight = (weight / torch.sum(weight)).to(device)
-        self.lorenz = lorenz
+        self.lorentz = lorentz
 
     def forward(self, vec, all_dis, id_list=None):
         """
@@ -35,20 +35,19 @@ class WeightedRankingLoss(Module):
 
             anchor_trajs = traj_list[0].repeat(sample_num, 1)
             anchor_idxs = idxs[0].repeat(sample_num, 1).view(-1)
-            assert self.lorenz is not None
-            if self.lorenz.lorenz == 0:
+            assert self.lorentz is not None
+            #-------using learned_cmb_dist
+            ########
+            if self.lorentz.lorentz == 0:
                 pairdist = PairwiseDistance(p=2)
                 dis_pred = pairdist(anchor_trajs, traj_list)
-                # [sample_num]
-                # dis_pred = self.lorenz.dist(anchor_trajs, traj_list)
-                # dis_pred = self.lorenz.learned_cmb_dist(anchor_trajs, traj_list, traj_i=None, traj_j=None)
                 sim_pred = torch.exp(-dis_pred)
-
             else:
-                # dis_pred = self.lorenz.dist(anchor_trajs, traj_list)
-                dis_pred = self.lorenz.learned_cmb_dist(anchor_trajs, traj_list, traj_i=anchor_idxs.tolist(), traj_j=idxs.tolist())
+                # dis_pred = self.lorentz.dist(anchor_trajs, traj_list)
+                dis_pred = self.lorentz.learned_cmb_dist(anchor_trajs, traj_list, traj_i=anchor_idxs.tolist(), traj_j=idxs.tolist())
                 sim_pred = torch.exp(-dis_pred)
-
+            ########
+            #-------
             sim_truth = torch.exp(-self.alpha * dis_list)
             div = sim_truth - sim_pred
             square = torch.mul(div, div)

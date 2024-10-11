@@ -12,9 +12,8 @@ max_nodes: 500
 max_depth: 20
 sample_num: 10
 alpha: 16
-train_data_range: [0, -1]  # please set the range of  data
-val_data_range: [-1, -1] # please set the range of  data
-emb_data_range: [-1, -1] # please set the range of  data
+train_data_range: [0, 6000]
+val_data_range: [6000, 10000]
 num_workers: 2
 
 train_batch_size: 2
@@ -41,8 +40,8 @@ lr_reduce_factor: 0.5
 lr_schedule_patience: 10
 
 
-traj_path: '../data_set/{}/trajs.pkl'
-dis_matrix_path: '../data_set/{}/{}.pkl'
+traj_path: '../data_set/{}/trajs_demo_10000.pkl'
+dis_matrix_path: '../data_set/{}/{}_demo_10000x10000.pkl'
 
 
 model_best_wts_path: 'model/wts/{}_{}_{}_{}_wts_hr10 {:.4f}.pkl'

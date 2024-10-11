@@ -37,12 +37,26 @@ class WeightMSELoss(Module):
 
 
 class WeightedRankingLoss(Module):
-    def __init__(self, batch_size, sampling_num):
+    def __init__(self, batch_size, sampling_num, lorentz=None):
         super(WeightedRankingLoss, self).__init__()
         self.positive_loss = WeightMSELoss(batch_size, sampling_num)
         self.negative_loss = WeightMSELoss(batch_size, sampling_num)
+        self.lorentz = lorentz
 
-    def forward(self, p_input, p_target, n_input, n_target):
+    def forward(self,anchor_embedding, trajs_embedding, negative_embedding, p_target, n_target, idx):
+        anchors_idx, trajs_idx, negs_idx= idx
+        #-------------- using learned_cmb_dist
+        ###############
+        if self.lorentz == 0:
+            positive = torch.exp(-F.pairwise_distance(anchor_embedding, trajs_embedding, p=2))
+            negative = torch.exp(-F.pairwise_distance(anchor_embedding, negative_embedding, p=2))
+        else:
+            positive = torch.exp(-self.lorentz.learned_cmb_dist(anchor_embedding, trajs_embedding, anchors_idx, trajs_idx))
+            negative = torch.exp(-self.lorentz.learned_cmb_dist(anchor_embedding, negative_embedding, anchors_idx, negs_idx))
+        ###############
+        #--------------
+        p_input = positive
+        n_input = negative
         if config.device == 'cuda':
             trajs_mse_loss = self.positive_loss(p_input, autograd.Variable(p_target).cuda(), False)
             negative_mse_loss = self.negative_loss(n_input, autograd.Variable(n_target).cuda(), True)

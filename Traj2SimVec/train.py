@@ -8,11 +8,14 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import sys
+
 sys.path.append('../')
+from lorentz.handler import EmbeddingModelHandler, LH_trainer
+
 from Traj2SimVec import cfg
 from Traj2SimVec.loss import Loss
 from Traj2SimVec.network import Traj2SimVec, Traj2SimVecHandler
-from lorenz.transfer import cal_top10_acc
+from lorentz.transfer import cal_top10_acc
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -84,13 +87,12 @@ def preprocess(trajs, dist, subdist, np):
         near_data_sim.append(subsim)
         near_data_sub_idx.append(subidx)
 
-
         np_item = np[i][j]
         if len(np_item) < 10:
             max_traj_len = min(len(xi), len(xj))
             tmp_idx = random.sample(range(0, max_traj_len), 10)
-            np_use = [[i,i] for i in tmp_idx]
-            #np_use = np_item[random.choices(range(0, max_traj_len), k=10)]
+            np_use = [[i, i] for i in tmp_idx]
+            # np_use = np_item[random.choices(range(0, max_traj_len), k=10)]
         else:
             np_use = np_item[random.sample(range(len(np_item)), 10)]
         tmp_near_match_idx = []
@@ -139,7 +141,7 @@ def preprocess(trajs, dist, subdist, np):
             max_traj_len = min(len(xi), len(xj))
             tmp_idx = random.sample(range(0, max_traj_len), 10)
             np_use = [[i, i] for i in tmp_idx]
-            #np_use = np_item[random.choices(range(0, max_traj_len), k=10)]
+            # np_use = np_item[random.choices(range(0, max_traj_len), k=10)]
         else:
             np_use = np_item[random.sample(range(len(np_item)), 10)]
 
@@ -172,7 +174,7 @@ def preprocess(trajs, dist, subdist, np):
         v = [near_data_traj_i[i], near_data_traj_j[i], near_data_sim[i], near_data_sub_idx[i], near_match_idx[i],
              far_data_traj_i[i], far_data_traj_j[i], far_data_sim[i], far_data_sub_idx[i], far_match_idx[i],
              near_weight[i], far_weight[i], near_data_traj_i_idx[i], near_data_traj_j_idx[i],
-             far_data_traj_i_idx[i],far_data_traj_j_idx[i]]
+             far_data_traj_i_idx[i], far_data_traj_j_idx[i]]
         data.append(v)
     return data
 
@@ -218,7 +220,6 @@ def loader_collate_fn(batch):
         far_traj_i_idx.append(item[14])
         far_traj_j_idx.append(item[15])
 
-
     near_traj_i.extend(near_traj_j)
     far_traj_i.extend(far_traj_j)
     near_padded_traj = [traj + [[0, 0]] * (max_near_len - len(traj)) for traj in near_traj_i]
@@ -258,8 +259,9 @@ def collate_fn_valid(batch):
 
 def valid(dataloader, model: Traj2SimVec):
     model.eval()
-    embs = torch.zeros((len_traj, 128)).to(device)
-    start = len_traj * cfg.train_ratio
+    embs = torch.zeros((10000, 128)).to(device)
+    start = 6000
+
     with torch.no_grad():
         for trajs, lens in dataloader:
             y, _ = model(trajs)
@@ -286,23 +288,21 @@ def data_enhance(trajs, dist, subdist):
             traj[idx] = [(x - meanx) / stdx, (y - meany) / stdy]
 
     max_dist = dist.max()
-    dist[:] = dist[:]/max_dist
-    subdist[:,:,:,0] = subdist[:,:,:,0]/max_dist
+    dist[:] = dist[:] / max_dist
+    subdist[:, :, :, 0] = subdist[:, :, :, 0] / max_dist
 
-def train(load=False):
 
-    trajs = pload(f'../data_set/{cfg.city}/trajs.pkl')
+def train():
+    trajs = pload(f'../data_set/{cfg.city}/trajs_demo_10000.pkl')
 
-    dist = pload(f'../data_set/{cfg.city}/{cfg.sim}.pkl')
+    dist = pload(f'../data_set/{cfg.city}/{cfg.sim}_demo_10000x10000.pkl')
     dist = numpy.array(dist)
-    np = pload(f'../data_set/{cfg.city}/{cfg.sim}_np.pkl')
-    global len_traj
-    len_traj = len(trajs)
-    subdist = numpy.zeros((len_traj, len_traj, 11, 3), dtype=numpy.float32)
-    # you should mod this subtraj sim matrix loading code.
-    raise Exception("You should modify this code to load the subtraj sim matrix.")
-    subdist = pload(f'../data_set/{city}/{sim}_sub.pkl')
-
+    np = pload(f'../data_set/{cfg.city}/{cfg.sim}_np_demo_10000x10000.pkl')
+    subdist = numpy.zeros((10000, 10000, 11, 3), dtype=numpy.float32)
+    for i in range(6):
+        subdist[i * 1000:(i + 1) * 1000] = pload(
+            f'../data_set/{cfg.city}/remote/{cfg.sim}_sub_demo_10000x10000_matrix_{i}_10.pkl')
+    # subdist = pload(f'../data_set/{city}/{sim}_sub_10000x10000.pkl')
 
 
 
@@ -310,7 +310,6 @@ def train(load=False):
     data_ = preprocess(trajs, dist, subdist, np)
     data_ = data_[:int(len(data_) * cfg.ratio)]
     data_valid = preproc_valid(trajs)
-
 
     import gc
     subdist = None  # 或 del subdist
@@ -320,63 +319,62 @@ def train(load=False):
     bst10, bst5, bst50, bndcg, bst10in50, early_stop = 0.0, 0.0, 0.0, 0.0, 0.0, 0
 
     model = Traj2SimVecHandler(cfg, trajs).to(device)
-    # lorenz = Lorenz(base_model=[], dim=(2, 128), lorenz=cfg.lorenz, trajs=trajs, sqrt=cfg.sqrt)
-    criterion = Loss(model.lorenz)
+
+    #---------add
+    ##########
+    model = EmbeddingModelHandler(model,
+                                  lh_input_size=2,
+                                  lh_target_size=cfg.dim,
+                                  lh_lorentz=cfg.lorentz,
+                                  lh_trajs=trajs,
+                                  lh_sqrt=cfg.sqrt)
+    trainer_lh = LH_trainer(model, cfg.lorentz, every_epoch=1, grad_reduce=1, loss_cmb=3)
+    ##########
+    #---------
+
+    criterion = Loss(model.lorentz)
     model.train()
     model_optim = torch.optim.Adam(model.parameters(), lr=0.0001)
-
     dist = numpy.array(dist)
-    if load:
-        model.load_state_dict(torch.load(f'../data_set/{cfg.city}/model_{cfg.sim}_best.pth'))
-        emb = valid(validloader, model)
-        bst10, bst50, bst5, bndcg, bst10in50,_ = cal_top10_acc(dist, emb, (int(cfg.train_ratio*len_traj), int(cfg.valid_ratio* len_traj)), model.lorenz, _10in50=True, quick=False)
-    for epoch in range(500):
-        if True:
-            model.train()
-            epoch_loss = 0.0
-            model.train()
-            model.lorenz.both_train(True, False)
-            with tqdm(dataloader, 'raw') as tq:
-                for near, far in tq:
-                    near_traj, near_sim, near_sub_idx, near_match_idx, near_weight, n_idx_i, n_idx_j = near
-                    far_traj, far_sim, far_sub_idx, far_match_idx, far_weight, f_idx_i, f_idx_j = far
-                    near_sub, near_match = model(near_traj)  # vecters [B*SAM, d_model]
-                    far_sub, far_match = model(far_traj)
-                    half = near_sub.shape[0] // 2
-                    loss_near = criterion(xi=near_sub[:half], xj=near_sub[half:], sub_idx=near_sub_idx,
-                                          x_i=near_match[:half], x_j=near_match[half:], label=near_sim,
-                                          match_idx=near_match_idx, weight=near_weight, idx_i=n_idx_i, idx_j=n_idx_j)
-                    loss_far = criterion(xi=far_sub[:half], xj=far_sub[half:], sub_idx=far_sub_idx, x_i=far_match[:half],
-                                         x_j=far_match[half:], label=far_sim, match_idx=far_match_idx, weight=far_weight,
-                                         idx_i=f_idx_i, idx_j=f_idx_j)
-                    loss = loss_near + loss_far
-                    model_optim.zero_grad()
-                    loss.backward()
-                    model_optim.step()
-                    epoch_loss += loss.item()
-            if cfg.lorenz > 0:
-                if epoch % 1== 0:
-                    model.lorenz.both_train(False, True)
-                    with tqdm(dataloader,'lorentz') as tq:
-                        for near, far in tq:
-                            near_traj, near_sim, near_sub_idx, near_match_idx, near_weight, n_idx_i, n_idx_j = near
-                            far_traj, far_sim, far_sub_idx, far_match_idx, far_weight, f_idx_i, f_idx_j = far
-                            near_sub, near_match = model(near_traj)  # vecters [B*SAM, d_model]
-                            far_sub, far_match = model(far_traj)
-                            half = near_sub.shape[0] // 2
-                            loss_near = criterion(xi=near_sub[:half], xj=near_sub[half:], sub_idx=near_sub_idx,
-                                                  x_i=near_match[:half], x_j=near_match[half:], label=near_sim,
-                                                  match_idx=near_match_idx, weight=near_weight, idx_i=n_idx_i, idx_j=n_idx_j)
-                            loss_far = criterion(xi=far_sub[:half], xj=far_sub[half:], sub_idx=far_sub_idx,
-                                                 x_i=far_match[:half],
-                                                 x_j=far_match[half:], label=far_sim, match_idx=far_match_idx,
-                                                 weight=far_weight,
-                                                 idx_i=f_idx_i, idx_j=f_idx_j)
-                            loss = loss_near + loss_far
+
+    for epoch in range(50000):
+        model.train()
+
+        # -------- add
+        ##########
+        with trainer_lh.get_iter(epoch) as iter_lh:
+            for train_str, loss_cmb in iter_lh:
+        ##########
+        # --------
+                sum_loss, cnt = 0.0, 0
+
+                with tqdm(dataloader, train_str) as tq:
+                    for near, far in tq:
+                        near_traj, near_sim, near_sub_idx, near_match_idx, near_weight, n_idx_i, n_idx_j = near
+                        far_traj, far_sim, far_sub_idx, far_match_idx, far_weight, f_idx_i, f_idx_j = far
+                        near_sub, near_match = model(near_traj)  # vecters [B*SAM, d_model]
+                        far_sub, far_match = model(far_traj)
+                        half = near_sub.shape[0] // 2
+                        loss_near = criterion(xi=near_sub[:half], xj=near_sub[half:], sub_idx=near_sub_idx,
+                                              x_i=near_match[:half], x_j=near_match[half:], label=near_sim,
+                                              match_idx=near_match_idx, weight=near_weight, idx_i=n_idx_i, idx_j=n_idx_j)
+                        loss_far = criterion(xi=far_sub[:half], xj=far_sub[half:], sub_idx=far_sub_idx, x_i=far_match[:half],
+                                             x_j=far_match[half:], label=far_sim, match_idx=far_match_idx, weight=far_weight,
+                                             idx_i=f_idx_i, idx_j=f_idx_j)
+                        loss = loss_near + loss_far
+                        sum_loss += loss
+                        cnt += 1
+
+                        if cnt % loss_cmb == loss_cmb - 1:
                             model_optim.zero_grad()
-                            loss.backward()
+                            sum_loss.backward()
+
+                            ##### add LH grad reduce
+                            iter_lh.LH_grad_reduce()
+                            #####
                             model_optim.step()
-                            epoch_loss += loss.item()
+                            sum_loss = 0
+
 
 
         emb = valid(validloader, model)
@@ -385,16 +383,26 @@ def train(load=False):
         print(f"gpu alloc:{torch.cuda.max_memory_allocated() / (1024 ** 3)}|"
               f"resv:{torch.cuda.max_memory_reserved() / (1024 ** 3)}|cache:{torch.cuda.max_memory_cached() / (1024 ** 3)}")
 
+        #-------------replace
+        ##############
+        hr10, hr50, hr5, ndcg, hr10in50, metric, extra_msg = cal_top10_acc(dist, emb,
+                                                                           (int(0.6 * len(trajs)), len(trajs)),
+                                                                           model.lorentz, _10in50=True, quick=False,
+                                                                           extra_msg=True)
+        ##############
+        #-------------
 
-        hr10, hr50, hr5, ndcg, hr10in50, metric = cal_top10_acc(dist, emb, (int(cfg.train_ratio*len_traj), int(cfg.valid_ratio* len_traj)), model.lorenz, _10in50=True, quick=False)
         print(f"gpu alloc:{torch.cuda.max_memory_allocated() / (1024 ** 3)}|"
               f"resv:{torch.cuda.max_memory_reserved() / (1024 ** 3)}|cache:{torch.cuda.max_memory_cached() / (1024 ** 3)}")
         if hr10 >= bst10:
             bst10 = hr10
             early_stop = 0
-            torch.save(model.state_dict(), f'../data_set/{cfg.city}/model_{cfg.sim}_{cfg.lorenz}_best.pth')
-            pickle.dump(metric, open(f'traj2simvec_metric_{cfg.city}_{cfg.sim}_l{cfg.lorenz}_acc{hr10}', 'wb'))
-            print(f'Best HR10:{hr10:.4f} HR5:{bst5:.4f} HR50:{bst50:.4f} NDCG:{bndcg:.7f}, HR10in50:{bst10in50:.4f} save {cfg.city}/model_{cfg.sim}_{cfg.lorenz}_best.pth, quick cal sim')
+            torch.save(model.state_dict(), f'../data_set/{cfg.city}/model_{cfg.sim}_{cfg.lorentz}_best.pth')
+            bst5, bst50, bndcg, bst10in50 = max(bst5, hr5), max(bst50, hr50), max(bndcg, ndcg), max(bst10in50, hr10in50)
+            pickle.dump(metric, open(f'traj2simvec_metric_{cfg.city}_{cfg.sim}_l{cfg.lorentz}_acc{hr10}', 'wb'))
+            print(
+                f'Best HR10:{hr10:.4f} HR5:{bst5:.4f} HR50:{bst50:.4f} NDCG:{bndcg:.7f}, HR10in50:{bst10in50:.4f} save {cfg.city}/model_{cfg.sim}_{cfg.lorentz}_best.pth, quick cal sim')
+            print(f'extra_msg:{extra_msg}')
         else:
             early_stop += 1
             if early_stop >= 3:
@@ -403,29 +411,33 @@ def train(load=False):
         bst5, bst50, bndcg, bst10in50 = max(bst5, hr5), max(bst50, hr50), max(bndcg, ndcg), max(bst10in50, hr10in50)
         # print(f'HR5:{bst5:.4f},HR10:{bst10:.4f}, HR50:{bst50:.4f}, NDCG:{bndcg:.7f}, HR10in50:{bst10in50:.4f}')
     print(f'Best HR10:{bst10:.4f}, HR50:{bst50:.4f}, HR5:{bst5:.4f}, NDCG:{bndcg:.7f}, HR10in50:{bst10in50:.4f}')
-    model.load_state_dict(torch.load(f'../data_set/{cfg.city}/model_{cfg.sim}_{cfg.lorenz}_best.pth'))
+    model.load_state_dict(torch.load(f'../data_set/{cfg.city}/model_{cfg.sim}_{cfg.lorentz}_best.pth'))
 
     emb = valid(validloader, model)
-    hr10, hr50, hr5, ndcg, hr10in50,_ = cal_top10_acc(dist, emb, (int(cfg.valid_ratio*len_traj), len_traj), model.lorenz, _10in50=True)
+    hr10, hr50, hr5, ndcg, hr10in50, _, msg = cal_top10_acc(dist, emb, (int(0.6 * len(trajs)), len(trajs)),
+                                                            model.lorentz, _10in50=True, extra_msg=True)
 
-    print(f'Final HR10:{hr10:.4f}, HR50:{hr50:.4f}, HR5:{hr5:.4f}, NDCG:{ndcg:.7f}, HR10in50:{hr10in50:.4f}')
+    print(f'Final HR10:{hr10:.4f}, HR50:{hr50:.4f}, HR5:{hr5:.4f}, NDCG:{ndcg:.7f}, HR10in50:{hr10in50:.4f}, msg:{msg}')
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Traj2SimVec")
-    parser.add_argument("-L", "--lorenz", type=int, default=0)
+    parser.add_argument("-L", "--lorentz", type=int, default=0)
     parser.add_argument("-c", "--city", type=str, default='chengdu')
     parser.add_argument("-s", "--sim", type=str, default='dtw')
     parser.add_argument("-q", "--sqrt", type=float, default=8)
-    #parser.add_argument("-m", "--mod", type=str, default='lstm')
+    # parser.add_argument("-m", "--mod", type=str, default='lstm')
     parser.add_argument("-r", "--ratio", type=float, default=1.0)
     args = parser.parse_args()
     return args
 
+
 if __name__ == '__main__':
     args = parse_args()
-    cfg.sim, cfg.city, cfg.lorenz, cfg.sqrt, cfg.ratio = args.sim, args.city, args.lorenz, args.sqrt, args.ratio
 
-    train(load=False)
+    cfg.sim, cfg.city, cfg.lorentz, cfg.sqrt, cfg.ratio = args.sim, args.city, args.lorentz, args.sqrt, args.ratio
+
+    train()
     # values = [5, 2, 9, 1, 5, 6, 7, 3, 2, 0, 8, 7, 6, 5, 3, 4, 9, 8, 1, 0]
     # idx = list(range(200, 220))  # Indices from 0 to 19
     #

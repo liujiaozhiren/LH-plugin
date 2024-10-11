@@ -4,13 +4,13 @@ import torch.cuda
 fname = 'chengdu'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 distance_type = 'dtw'
-base_data_path = f'../data_set/{fname}/trajs.pkl'
+base_data_path = f'../data_set/{fname}/trajs_demo_10000.pkl'
 neutraj_data_tmp = '../data_set/neutraj/'
 
 corrdatapath = neutraj_data_tmp + f'{fname}_traj_coord'
 gridxypath = neutraj_data_tmp + f'{fname}_traj_grid'
 
-distancepath = f'../data_set/{fname}/{distance_type}.pkl'
+distancepath = f'../data_set/{fname}/{distance_type}_demo_10000x10000.pkl'
 
 log_root = f'./log/'
 
@@ -19,10 +19,10 @@ traj_index_path = neutraj_data_tmp + f'{fname}_traj_index'
 GPU = "0"
 learning_rate = 0.01
 seeds_radio = 0.6
-epochs = 100
+epochs = 20
 batch_size = 25
 sampling_num = 10
-lorenz_mod = 'lstm'
+lorentz_mod = 'lstm'
 
 # distance_type = distancepath.split('/')[2].split('_')[1]
 # data_type = distancepath.split('/')[2].split('_')[0]
@@ -33,7 +33,7 @@ else:
     mail_pre_degree = 8
 
 # Test Config
-datalength = 100000
+datalength = 10000
 em_batch = 500
 test_num = 100
 sqrt=8
@@ -47,7 +47,8 @@ spatial_width = 2
 ratio=1.0
 
 gird_size = [500, 500]
-lorenz = True
+lorentz = True
+
 
 
 def config_to_str():
@@ -64,7 +65,7 @@ def config_to_str():
               'batch_size = {} '.format(batch_size) + '\n' + \
               'sampling_num = {} '.format(sampling_num) + '\n' + \
               'incell = {}'.format(incell) + '\n' + \
-              'lorenz = {}'.format(lorenz) + '\n' + \
+              'lorentz = {}'.format(lorentz) + '\n' + \
               'dim = {}'.format(d) + '\n' + \
               'gird_size = {}'.format(gird_size) + '\n' + \
               'stard_unit = {}'.format(stard_unit) + '\n' + \
@@ -77,10 +78,10 @@ def config_to_str():
 
 def update():
     global base_data_path, corrdatapath, gridxypath, distancepath, log_root, traj_index_path, data_type, mail_pre_degree
-    base_data_path = f'../data_set/{fname}/trajs.pkl'
+    base_data_path = f'../data_set/{fname}/trajs_demo_10000.pkl'
     corrdatapath = neutraj_data_tmp + f'{fname}_traj_coord'
     gridxypath = neutraj_data_tmp + f'{fname}_traj_grid'
-    distancepath = f'../data_set/{fname}/{distance_type}.pkl'
+    distancepath = f'../data_set/{fname}/{distance_type}_demo_10000x10000.pkl'
     traj_index_path = neutraj_data_tmp + f'{fname}_traj_index'
 
     data_type = fname

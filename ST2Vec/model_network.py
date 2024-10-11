@@ -13,7 +13,7 @@ parent_parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'
 print(parent_parent_dir)
 sys.path.append(parent_parent_dir)
 
-from lorenz.transfer import Lorenz
+from lorentz.transfer import Lorentz
 print('finish')
 
 class GCN(nn.Module):
@@ -228,14 +228,14 @@ class ST_Encoder(nn.Module):
         return att_output
 
 class STTrajSimEncoder(nn.Module):
-    def __init__(self, feature_size, embedding_size, date2vec_size, hidden_size, num_layers, dropout_rate, concat, device, trajs=None,lorenz=0):
+    def __init__(self, feature_size, embedding_size, date2vec_size, hidden_size, num_layers, dropout_rate, concat, device, trajs=None,lorentz=0):
         super(STTrajSimEncoder, self).__init__()
         self.stEncoder = ST_Encoder(feature_size, date2vec_size, embedding_size, hidden_size,
                                     num_layers, dropout_rate, device)
         self.concat = concat
-        #print('lorenz:', lorenz)
-        self.lorenz = Lorenz(base_model=[self.stEncoder], dim=(128, 256), lorenz=lorenz, trajs=trajs, load=None,
-                             model_type='lstm', sqrt=8)
+        # print('lorentz:', lorentz)
+        # self.lorentz = Lorentz(base_model=[self.stEncoder], dim=(128, 256), lorentz=lorentz, trajs=trajs, load=None,
+        #                      model_type='lstm', sqrt=8)
 
     def forward(self, network, traj_seqs, time_seqs):
         """
@@ -248,7 +248,3 @@ class STTrajSimEncoder(nn.Module):
         st_emb = self.stEncoder(network, traj_seqs, time_seqs)
         return st_emb
 
-    def reload_traj(self, network, traj_seqs, time_seqs):
-        s_input, seq_lengths = self.stEncoder.embedding_S(network, traj_seqs)
-        t_input = self.stEncoder.embedding_T(time_seqs)
-        self.lorenz.dynamic_store_traj_data(torch.cat([s_input, t_input], dim=-1).detach(), seq_lengths)

@@ -10,15 +10,15 @@ parent_parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'
 sys.path.append(parent_parent_dir)
 print(parent_parent_dir)
 
-from lorenz.transfer import Lorenz
+from lorentz.transfer import Lorentz
 
 class GraphTransformer(nn.Module):
-    def __init__(self, d_input, d_model, num_head, num_encoder_layers, d_lap_pos, encoder_dropout, pre_embedding, layer_norm=False, batch_norm=True, in_feat_dropout=0.0, lorenz=0, trajs=None, config=None):
+    def __init__(self, d_input, d_model, num_head, num_encoder_layers, d_lap_pos, encoder_dropout, pre_embedding, layer_norm=False, batch_norm=True, in_feat_dropout=0.0):
         super(GraphTransformer, self).__init__()
         self.embedding_h = nn.Linear(d_input, d_model)
         self.embedding_lap_pos = nn.Linear(d_lap_pos, d_model)
         self.in_feat_dropout = nn.Dropout(in_feat_dropout)
-        # self.lorenz = Lorenz(dim=d_model, lorenz=lorenz)
+        # self.lorentz = Lorentz(dim=d_model, lorentz=lorentz)
 
         # embedding layer for each node
         if pre_embedding is not None:
@@ -36,8 +36,8 @@ class GraphTransformer(nn.Module):
 
         encoder_layer = EncoderLayer(d_model=d_model, num_heads=num_head, dropout=encoder_dropout, layer_norm=layer_norm, batch_norm=batch_norm)
         self.encoder = Encoder(encoder_layer, num_encoder_layers)
-        self.lorenz = Lorenz(base_model=[self], dim=(2, config["d_model"]), lorenz=config['lorenz'], trajs=trajs,
-                             load=None, model_type=config["model_type"], sqrt=config["sqrt"], net_init=config["init"])
+        # self.lorentz = Lorentz(base_model=[self], dim=(2, config["d_model"]), lorentz=config['lorentz'], trajs=trajs,
+        #                      load=None, model_type=config["model_type"], sqrt=config["sqrt"], net_init=config["init"])
 
         self._reset_parameters()
 

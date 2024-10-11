@@ -12,7 +12,7 @@ from geo_rnns.sam_cells import SAM_LSTMCell, SAM_GRUCell
 parent_parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 sys.path.append(parent_parent_dir)
 
-from lorenz.transfer import Lorenz
+from lorentz.transfer import Lorentz
 
 
 class RNNEncoder(Module):
@@ -52,8 +52,8 @@ class RNNEncoder(Module):
                 else:
                     self.cell = SAM_LSTMCell(input_size, hidden_size, grid_size, incell=incell).cpu()
 
-        print(self.cell)
-        print('in cell update: {}'.format(incell))
+        #print(self.cell)
+        #print('in cell update: {}'.format(incell))
         # self.cell = torch.nn.LSTMCell(input_size-2, hidden_size).cuda()
 
     def forward(self, inputs_a, initial_state=None):
@@ -106,7 +106,7 @@ class RNNEncoder(Module):
 
 
 class NeuTraj_Network(Module):
-    def __init__(self, input_size, target_size, grid_size, batch_size, sampling_num, stard_LSTM=False, incell=True, trajs=None):
+    def __init__(self, input_size, target_size, grid_size, batch_size, sampling_num, stard_LSTM=False, incell=True):
         super(NeuTraj_Network, self).__init__()
         self.input_size = input_size
         self.target_size = target_size
@@ -140,7 +140,7 @@ class NeuTraj_Network(Module):
                                       requires_grad=False).cpu())
             self.rnn = RNNEncoder(self.input_size, self.target_size, self.grid_size, stard_LSTM=stard_LSTM,
                                   incell=incell).cpu()
-        self.lorenz = Lorenz(base_model=[self.rnn], dim=(2, target_size), lorenz=config.lorenz, trajs=trajs, load=None, model_type=config.lorenz_mod, sqrt=config.sqrt, C=config.C)
+        # self.lorentz = Lorentz(base_model=[self.rnn], dim=(2, target_size), lorentz=config.lorentz, trajs=trajs, load=None, model_type=config.lorentz_mod, sqrt=config.sqrt, C=config.C)
 
 
     def forward(self, inputs_arrays, inputs_len_arrays):
@@ -171,15 +171,17 @@ class NeuTraj_Network(Module):
         # trajs_loss = torch.exp(-F.pairwise_distance(anchor_embedding, trajs_embedding, p=2))
         # negative_loss = torch.exp(-F.pairwise_distance(anchor_embedding, negative_embedding, p=2))
 
-        # trajs_loss = torch.exp(-self.lorenz.dist(anchor_embedding, trajs_embedding, config.lorenz))
-        # negative_loss = torch.exp(-self.lorenz.dist(anchor_embedding, negative_embedding, config.lorenz))
+        # trajs_loss = torch.exp(-self.lorentz.dist(anchor_embedding, trajs_embedding, config.lorentz))
+        # negative_loss = torch.exp(-self.lorentz.dist(anchor_embedding, negative_embedding, config.lorentz))
         #
-        if config.lorenz == 0:
+        return anchor_embedding, trajs_embedding, negative_embedding
+
+        if config.lorentz == 0:
             trajs_loss = torch.exp(-F.pairwise_distance(anchor_embedding, trajs_embedding, p=2))
             negative_loss = torch.exp(-F.pairwise_distance(anchor_embedding, negative_embedding, p=2))
         else:
-            trajs_loss = torch.exp(-self.lorenz.learned_cmb_dist(anchor_embedding, trajs_embedding, anchors_idx, trajs_idx))
-            negative_loss = torch.exp(-self.lorenz.learned_cmb_dist(anchor_embedding, negative_embedding, anchors_idx, negs_idx))
+            trajs_loss = torch.exp(-self.lorentz.learned_cmb_dist(anchor_embedding, trajs_embedding, anchors_idx, trajs_idx))
+            negative_loss = torch.exp(-self.lorentz.learned_cmb_dist(anchor_embedding, negative_embedding, anchors_idx, negs_idx))
         assert anchor_embedding.isnan().any() == False and anchor_embedding.isinf().any() == False
         assert trajs_embedding.isnan().any() == False and trajs_embedding.isinf().any() == False
         assert trajs_loss.isinf().any() == False

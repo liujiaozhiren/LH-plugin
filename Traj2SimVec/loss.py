@@ -5,23 +5,23 @@ import torch.nn as nn
 
 
 class Loss(nn.Module):
-    def __init__(self, lorenz):
+    def __init__(self, lorentz):
         super(Loss, self).__init__()
-        self.subloss = SubTrajLoss(lorenz)
-        self.matchloss = MatchingLoss(lorenz)
-        self.lorenz = lorenz
+        self.subloss = SubTrajLoss(lorentz)
+        self.matchloss = MatchingLoss(lorentz)
+        self.lorentz = lorentz
 
     def forward(self, xi, xj, sub_idx, x_i, x_j, label, match_idx, weight, idx_i, idx_j):
         loss1 = self.subloss(xi, xj, sub_idx, label, weight, idx_i, idx_j)
         loss2 = self.matchloss(x_i, x_j, match_idx, weight, idx_i, idx_j)
         return loss1
-        return loss1 + loss2
+        # return loss1 + loss2
 
 
 class SubTrajLoss(nn.Module):
-    def __init__(self, lorenz):
+    def __init__(self, lorentz):
         super(SubTrajLoss, self).__init__()
-        self.lorenz = lorenz
+        self.lorentz = lorentz
 
     def forward(self, xi, xj, idx, label, weight, _idx_i, _idx_j):
         # N * r * (len1, len2) ---idx
@@ -34,16 +34,16 @@ class SubTrajLoss(nn.Module):
 
         vi_ = xi[torch.arange(N)[:, None], idx_i]
         vj_ = xj[torch.arange(N)[:, None], idx_j]
-        if self.lorenz.lorenz == 0:
+        if self.lorentz.lorentz == 0:
             dist = torch.exp(-((vi_ - vj_) ** 2).sum(dim=-1))
         else:
             tmp_id_i = [item for item in _idx_i for _ in range(11)]
             tmp_id_j = [item for item in _idx_j for _ in range(11)]
 
             dist = torch.exp(
-                -self.lorenz.learned_cmb_dist(vi_.view(-1, vi_.shape[-1]), vj_.view(-1, vj_.shape[-1]),
+                -self.lorentz.learned_cmb_dist(vi_.view(-1, vi_.shape[-1]), vj_.view(-1, vj_.shape[-1]),
                                               tmp_id_i, tmp_id_j, default=False))
-            # dist = torch.exp(-self.lorenz.learned_cmb_dist(vi_.view(-1, vi_.shape[-1]), vj_.view(-1, vj_.shape[-1]), default=True))
+            # dist = torch.exp(-self.lorentz.learned_cmb_dist(vi_.view(-1, vi_.shape[-1]), vj_.view(-1, vj_.shape[-1]), default=True))
 
             dist = dist.view(vi_.shape[0], vi_.shape[1])
 
@@ -53,11 +53,14 @@ class SubTrajLoss(nn.Module):
         vi, vj = vi_[:, 0], vj_[:, 0]
         label2 = label[:, 0]
 
-        if self.lorenz.lorenz == 0:
+        #-------------- using learned_cmb_dist
+        ###############
+        if self.lorentz.lorentz == 0:
             dist = torch.exp(-((vi - vj) ** 2).sum(dim=-1))
         else:
-            dist = torch.exp(-self.lorenz.learned_cmb_dist(vi, vj, _idx_i, _idx_j))
-        # raise Exception("lorenz not support error")
+            dist = torch.exp(-self.lorentz.learned_cmb_dist(vi, vj, _idx_i, _idx_j))
+        ###############
+        #--------------
 
         label2_ = torch.exp(-label2)
         # loss += ((label2 - dist) ** 2).sum()
@@ -66,21 +69,28 @@ class SubTrajLoss(nn.Module):
 
 
 class MatchingLoss(nn.Module):
-    def __init__(self, lorenz):
+    def __init__(self, lorentz):
         super(MatchingLoss, self).__init__()
-        self.lorenz = lorenz
+        self.lorentz = lorentz
 
     def forward(self, xi, xj, idx, weight, _idx_i, _idx_j):
         idx_i, idx_j, idx__j = idx[:, :, 0], idx[:, :, 1], idx[:, :, 2]
         N = xi.shape[0]
-        for i in range(len(idx_i)):
-            xi[i, idx_i[i]]
+
 
         vi_ = xi[torch.arange(N)[:, None], idx_i]
         vj_ = xj[torch.arange(N)[:, None], idx_j]
         v_j_ = xj[torch.arange(N)[:, None], idx__j]
-        dist = torch.exp(-((vi_ - vj_) ** 2).sum(dim=-1))
-        dist2 = torch.exp(-((vi_ - v_j_) ** 2).sum(dim=-1))
+        _idx__j = _idx_j[torch.arange(N)[:, None], idx__j]
+        if self.lorentz.lorentz == 0:
+            dist = torch.exp(-((vi_ - vj_) ** 2).sum(dim=-1))
+            dist2 = torch.exp(-((vi_ - v_j_) ** 2).sum(dim=-1))
+        else:
+            dist = torch.exp(-self.lorentz.learned_cmb_dist(vi_, vj_, _idx_i, _idx_j)).sum(dim=-1)
+            dist2 = torch.exp(-self.lorentz.learned_cmb_dist(vi_, v_j_, _idx_i, _idx__j)).sum(dim=-1)
+            #dist = torch.exp(-self.lorentz.learned_cmb_dist(vi, vj, _idx_i, _idx_j))
+        # dist = torch.exp(-((vi_ - vj_) ** 2).sum(dim=-1))
+        # dist2 = torch.exp(-((vi_ - v_j_) ** 2).sum(dim=-1))
         loss = -torch.relu(dist - dist2 - 0.01).sum(dim=-1) * weight / 10
         # loss = min(0, 0.01 - dist + dist2).sum() / 10
         return loss.sum()

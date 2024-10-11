@@ -8,9 +8,7 @@ from tqdm import tqdm
 import numpy as np
 
 import torch
-import torch.nn as nn
 from torch import optim
-from torch.utils.tensorboard import SummaryWriter
 import dgl
 
 from exp.exp_basic import ExpBasic
@@ -21,14 +19,17 @@ from utils.pre_embedding import get_pre_embedding
 
 from utils.data_loader import TrajGraphDataLoader
 from model.loss import WeightedRankingLoss
-from model.accuracy_functions import get_embedding_acc
+
 
 from utils.tools import pload, pdump
+
+
 
 parent_parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 sys.path.append(parent_parent_dir)
 
-from lorenz.transfer import cal_top10_acc, Lorenz
+from lorentz.transfer import cal_top10_acc, Lorentz
+from lorentz.handler import EmbeddingModelHandler, LH_trainer
 
 
 def view_model_param(model):
@@ -63,14 +64,16 @@ class ExpGraphTransformer(ExpBasic):
     def __init__(self, config, gpu_id, load_model, just_embeddings):
         self.load_model = load_model
         self.store_embeddings = just_embeddings
-        self.lorenz = None
+        self.lorentz = None
 
         super(ExpGraphTransformer, self).__init__(config, gpu_id)
+        trajs = pload(self.config["traj_path"].format(self.config["data"]))
+
+
+        rewrite_cfg(trajs, self.config)
 
         if just_embeddings:  # 只进行embedding操作
-            trajs = pload(self.config["traj_path"].format(self.config["data"]))
-            rewrite_cfg(trajs, self.config)
-            print(f"refresh {self.config}")
+            # print(f"refresh {self.config}")
             self.qtree = build_qtree(trajs, self.config["x_range"], self.config["y_range"], self.config["max_nodes"],
                                      self.config["max_depth"])
             # 决定是否要进行 embedding预训练
@@ -79,16 +82,14 @@ class ExpGraphTransformer(ExpBasic):
             print("Embedding Graphs: ", len(self.embeding_loader.dataset))
         else:
             # self.log_writer = SummaryWriter(
-            #     f"./runs/{self.config['data']}_{self.config['lorenz']}_{self.config['model']}_{self.config['dis_type']}_{datetime.datetime.now()}/")
-            trajs = pload(self.config["traj_path"].format(self.config["data"]))
-            rewrite_cfg(trajs, self.config)
+            #     f"./runs/{self.config['data']}_{self.config['lorentz']}_{self.config['model']}_{self.config['dis_type']}_{datetime.datetime.now()}/")
             print("[!] Build qtree, max nodes:", self.config["max_nodes"], "max depth:", self.config["max_depth"],
                   "x_range:", self.config["x_range"], "y_range:", self.config["y_range"])
 
             point2vector_path = f"./{self.config['data']}_point2vector"
 
             # if os.path.exists(point2vector_path):
-            if False:
+            if False: # here is sth wrong with the original load code so we rebuild the qtree every time
                 self.qtree, self.qtree_name2id, self.pre_embedding = pload(point2vector_path)
             else:
                 self.qtree = build_qtree(trajs, self.config["x_range"], self.config["y_range"],
@@ -101,21 +102,36 @@ class ExpGraphTransformer(ExpBasic):
             self.val_loader = self._get_dataloader(flag="val")
             print("Validation Graphs: ", len(self.val_loader.dataset))
 
-        self.model = self._build_model(trajs).to(self.device)
+        self.model = self._build_model().to(self.device)
 
-    def _build_model(self,trajs):
+
+
+        #-------- add
+        #########
+        self.model = EmbeddingModelHandler(self.model,
+                                            lh_input_size=2,
+                                            lh_target_size=config["d_model"],
+                                            lh_lorentz=config['lorentz'],
+                                            lh_trajs=trajs,
+                                            lh_model_type=config["model_type"],
+                                            lh_sqrt=config["sqrt"])
+
+        self.trainer_lh = LH_trainer(self.model, config['lorentz'], every_epoch=3, grad_reduce=0.1)
+        #########
+        #--------
+
+    def _build_model(self):
         if self.config["model"] == "TrajGAT":
             model = GraphTransformer(d_input=self.config["d_input"], d_model=self.config["d_model"],
                                      num_head=self.config["num_head"],
                                      num_encoder_layers=self.config["num_encoder_layers"],
                                      d_lap_pos=self.config["d_lap_pos"], encoder_dropout=self.config["encoder_dropout"],
                                      layer_norm=self.config["layer_norm"], batch_norm=self.config["batch_norm"],
-                                     in_feat_dropout=self.config["in_feat_dropout"], lorenz=self.config['lorenz'],
-                                     pre_embedding=self.pre_embedding, trajs=trajs, config=self.config)  # 预训练得到的，每个结点的 structure embedding
+                                     in_feat_dropout=self.config["in_feat_dropout"], pre_embedding=self.pre_embedding, )  # 预训练得到的，每个结点的 structure embedding
 
         view_model_param(model)
 
-        # self.lorenz = Lorenz(base_model=[model], dim=(2, self.config["d_model"]), lorenz=self.config['lorenz'], trajs=trajs,
+        # self.lorentz = Lorentz(base_model=[model], dim=(2, self.config["d_model"]), lorentz=self.config['lorentz'], trajs=trajs,
         #                      load=None, model_type=self.config["model_type"])
         if self.load_model is not None:
             model.load_state_dict(torch.load(self.load_model))
@@ -127,6 +143,7 @@ class ExpGraphTransformer(ExpBasic):
         if flag == "train":
             trajs = pload(self.config["traj_path"].format(self.config["data"]))[
                     self.config["train_data_range"][0]: self.config["train_data_range"][1]]
+
             print("Train traj number:", len(trajs))
             print(f'traj_path:{self.config["traj_path"].format(self.config["data"])},matrix path{self.config["dis_matrix_path"].format(self.config["data"], self.config["dis_type"])}')
             matrix = pload(self.config["dis_matrix_path"].format(self.config["data"], self.config["dis_type"]))
@@ -135,6 +152,7 @@ class ExpGraphTransformer(ExpBasic):
                      self.config["train_data_range"][0]: self.config["train_data_range"][1]]
             # print("Train matrix shape:", matrix.shape)
             # print(matrix[:5, :5])
+
         elif flag == "val":
             trajs = pload(self.config["traj_path"].format(self.config["data"]))[
                     self.config["val_data_range"][0]: self.config["val_data_range"][1]]
@@ -147,13 +165,11 @@ class ExpGraphTransformer(ExpBasic):
             # print(matrix[:5, :5])
             # print(matrix[:, 6000:10000])
 
+
         elif flag == "embed":
-            trajs = pload(self.config["traj_path"].format(self.config["data"]))[
-                    self.config["emb_data_range"][0]: self.config["emb_data_range"][1]]
+            trajs = pload(self.config["traj_path"].format(self.config["data"]))
             matrix = torch.tensor(
-                pload(self.config["dis_matrix_path"].format(self.config["data"], self.config["dis_type"])))[
-                     self.config["emb_data_range"][0]: self.config["emb_data_range"][1],
-                     self.config["emb_data_range"][0]: self.config["emb_data_range"][1]]
+                pload(self.config["dis_matrix_path"].format(self.config["data"], self.config["dis_type"])))
 
         data_loader = TrajGraphDataLoader(traj_data=trajs, dis_matrix=matrix, phase=flag,
                                           train_batch_size=self.config["train_batch_size"],
@@ -175,7 +191,7 @@ class ExpGraphTransformer(ExpBasic):
         return model_optim, None
 
     def _select_criterion(self):
-        criterion = WeightedRankingLoss(self.config["sample_num"], self.config["alpha"], self.device, self.model.lorenz)
+        criterion = WeightedRankingLoss(self.config["sample_num"], self.config["alpha"], self.device, self.model.lorentz)
         return criterion
 
     def embedding(self):
@@ -215,7 +231,7 @@ class ExpGraphTransformer(ExpBasic):
         #                                        distance_matrix=self.embeding_loader.dataset.dis_matrix,
         #                                        matrix_cal_batch=self.config["matrix_cal_batch"], )
         hr10, hr50, r10_50,_ = cal_top10_acc(self.val_loader.dataset.dis_matrix, all_vectors,
-                                           self.config["val_data_range"], self.model.lorenz, self.config['lorenz'])
+                                           self.config["val_data_range"], self.model.lorentz, self.config['lorentz'])
 
         print(hr10, hr50, r10_50)
 
@@ -248,15 +264,16 @@ class ExpGraphTransformer(ExpBasic):
         #     row_embedding_tensor=all_vectors[self.config["val_data_range"][0]: self.config["val_data_range"][1]],
         #     col_embedding_tensor=all_vectors, distance_matrix=self.val_loader.dataset.dis_matrix,
         #     matrix_cal_batch=self.config["matrix_cal_batch"], )
-        new_vectors = torch.zeros((10000, all_vectors.shape[-1]), dtype=torch.float32, device='cpu')
+        new_vectors = torch.zeros((self.config["val_data_range"][1], all_vectors.shape[-1]), dtype=torch.float32, device='cuda:0')
         new_vectors[self.config["val_data_range"][0]:self.config["val_data_range"][1]] = all_vectors
 
-        hr10, hr50, hr5, ndcg, metric = cal_top10_acc(self.val_loader.dataset.dis_matrix.numpy(), new_vectors, self.config["val_data_range"],
-                                              self.model.lorenz, self.config['lorenz'],quick=False)
+        hr10, hr50, hr5, ndcg, metric, msg = cal_top10_acc(self.val_loader.dataset.dis_matrix.numpy(), new_vectors, self.config["val_data_range"],
+                                              self.model.lorentz, self.config['lorentz'],quick=False,extra_msg=True)
         self.model.train()
-        return hr10, hr50, hr5, ndcg, metric
+        return hr10, hr50, hr5, ndcg, metric, msg
 
     def train(self):
+        self.val()
         best_model_wts = copy.deepcopy(self.model.state_dict())
         best_hr10, best_hr5, best_hr50, best_ndcg = 0.0, 0.0, 0.0, 0.0
         time_now = time.time()
@@ -265,90 +282,52 @@ class ExpGraphTransformer(ExpBasic):
         criterion = self._select_criterion()
         # best_hr10, best_hr50, best_hr5, best_ndcg = self.val()
         for epoch in range(self.config["epoch"]):
-            if True:
-                self.model.train()
+            self.model.train()
+            epoch_loss = 0.0
 
-                epoch_begin_time = time.time()
-                epoch_loss = 0.0
+            #--------
+            #########
+            with self.trainer_lh.get_iter(epoch) as iter_lh:
+                for train_str, loss_cmb in iter_lh:
+            #########
+            #--------
 
-                dataload_time = 0
-                embed_time = 0
-                groupdata_time = 0
-                test_time = time.time()
+                    sum_loss, cnt = 0, 0
+                    self.model.lorentz.both_train(True, False)
+                    with tqdm(self.train_loader, train_str) as tq:
+                        for trajgraph_l_l, dis_l, idx_l in tq:
+                            B = len(trajgraph_l_l)
+                            SAM = self.config["sample_num"]
+                            D = self.config["d_model"]
+                            traj_graph = []
+                            for b in trajgraph_l_l:
+                                traj_graph.extend(b)
+                            batch_graphs = dgl.batch(traj_graph).to(self.device)  # (B*SAM, graph)
 
-                self.model.lorenz.both_train(True, False)
-                with tqdm(self.train_loader,'raw') as tq:
-                    for trajgraph_l_l, dis_l, idx_l in tq:
-                        dataload_time += time.time() - test_time
-                        test_time2 = time.time()
-                        # trajgraph_l_l [B, SAM, graph]
-                        # dis_l [B, SAM]
-                        B = len(trajgraph_l_l)
-                        SAM = self.config["sample_num"]
-                        D = self.config["d_model"]
+                            with torch.set_grad_enabled(True):
+                                vectors = self.model(batch_graphs)  # vecters [B*SAM, d_model]
+                            vectors = vectors.view(B, SAM, D)
+                            loss = criterion(vectors, torch.tensor(dis_l).to(self.device), torch.tensor(idx_l))
+                            sum_loss += loss
+                            cnt += 1
 
-                        traj_graph = []
-                        for b in trajgraph_l_l:
-                            traj_graph.extend(b)
-                        batch_graphs = dgl.batch(traj_graph).to(self.device)  # (B*SAM, graph)
-                        groupdata_time += time.time() - test_time2
-                        test_time3 = time.time()
-                        model_optim.zero_grad()
-
-                        with torch.set_grad_enabled(True):
-                            vectors = self.model(batch_graphs)  # vecters [B*SAM, d_model]
-
-                        vectors = vectors.view(B, SAM, D)
-
-                        loss = criterion(vectors, torch.tensor(dis_l).to(self.device), torch.tensor(idx_l))
-
-                        loss.backward()
-                        model_optim.step()
-
-                        epoch_loss += loss.item()
-                        embed_time += time.time() - test_time3
-                        test_time = time.time()
-
-                print("\nLoad data time:", dataload_time // 60, "m")
-                print("Data group time:", groupdata_time // 60, "m")
-                print("Train model time:", embed_time // 60, "m\n")
-
-                epoch_loss = epoch_loss / len(self.train_loader.dataset)
-                # self.log_writer.add_scalar(f"TrajRepresentation/Loss", float(epoch_loss), epoch)
-
-                if self.model.lorenz.lorenz != 0:
-                    if epoch %3 == 2:
-                        self.model.lorenz.both_train(False, True)
-                        with tqdm(self.train_loader,'lorentz') as tq:
-                            for trajgraph_l_l, dis_l, idx_l in tq:
-                                B = len(trajgraph_l_l)
-                                SAM = self.config["sample_num"]
-                                D = self.config["d_model"]
-
-                                traj_graph = []
-                                for b in trajgraph_l_l:
-                                    traj_graph.extend(b)
-                                batch_graphs = dgl.batch(traj_graph).to(self.device)  # (B*SAM, graph)
+                            if cnt % loss_cmb == loss_cmb - 1:
                                 model_optim.zero_grad()
-                                with torch.set_grad_enabled(True):
-                                    vectors = self.model(batch_graphs)  # vecters [B*SAM, d_model]
-                                    vectors = vectors.view(B, SAM, D)
-                                    loss = criterion(vectors, torch.tensor(dis_l).to(self.device), torch.tensor(idx_l))
+                                sum_loss.backward()
 
-                                    for param in self.model.lorenz.traj2vec.parameters():
-                                        if param.grad is not None:
-                                            param.grad.data *= 0.1
+                                ##### add LH grad reduce
+                                iter_lh.LH_grad_reduce()
+                                #####
+                                model_optim.step()
+                                sum_loss = 0
 
-                                    loss.backward()
-                                    model_optim.step()
-                # scheduler.step(epoch_loss)
-                epoch_end_time = time.time()
-                print(
-                    f"\nEpoch {epoch + 1}/{self.config['epoch']}:\nTrain Loss: {epoch_loss:.4f}\tTime: {(epoch_end_time - epoch_begin_time) // 60} m {int((epoch_end_time - epoch_begin_time) % 60)} s")
+                            epoch_loss += loss.item()
+                    epoch_loss = epoch_loss / len(self.train_loader.dataset)
+                    print(f"\nEpoch {epoch + 1}/{self.config['epoch']}:\nTrain Loss: {epoch_loss:.4f}\t")
 
-                #val_begin_time = time.time()
+
             print('start val!!!!!!!!!!!!!!!!!!!!!!!!=============================')
-            hr10, hr50, hr5, ndcg, metric = self.val()
+            hr10, hr50, hr5, ndcg, metric, msg = self.val()
             print(f"gpu alloc:{torch.cuda.max_memory_allocated() / (1024 ** 3)}|"
                   f"resv:{torch.cuda.max_memory_reserved() / (1024 ** 3)}|cache:{torch.cuda.max_memory_cached() / (1024 ** 3)}")
             better_str = "better" if hr10 >= best_hr10 else "worse_"
@@ -358,16 +337,17 @@ class ExpGraphTransformer(ExpBasic):
             best_ndcg = max(ndcg, best_ndcg)
             print(
                 f"{better_str} Val HR10: {100 * hr10:.4f}|{100 * best_hr10:.4f}\tHR50: {100 * hr50:.4f}|{100 * best_hr50:.4f}%\tHR5: {100 * hr5:.4f}|{100 * best_hr5:.4f}%\tndcg:{ndcg:.7f}|{best_ndcg:.7f}")
+            print(f'msg:{msg}')
             logging.info(
                 f"{better_str} Val HR10: {100 * hr10:.4f}|{100 * best_hr10:.4f}\tHR50: {100 * hr50:.4f}|{100 * best_hr50:.4f}%\tHR5: {100 * hr5:.4f}|{100 * best_hr5:.4f}%\tndcg:{ndcg:.7f}|{best_ndcg:.7f}")
             if hr10 >= best_hr10:
                 early_stop = 0
                 best_model_wts = copy.deepcopy(self.model.state_dict())
                 torch.save(best_model_wts,
-                           self.config["model_best_wts_path"].format(self.config["data"], self.config["lorenz"],
+                           self.config["model_best_wts_path"].format(self.config["data"], self.config["lorentz"],
                                                                      self.config["model"],
                                                                      self.config["dis_type"], best_hr10))
-                # pickle.dump(metric, open(f"gat_metric_{self.config['data']}_{self.config['dis_type']}_l{self.config['lorenz']}_acc{best_hr10}", "wb"))
+                # pickle.dump(metric, open(f"gat_metric_{self.config['data']}_{self.config['dis_type']}_l{self.config['lorentz']}_acc{best_hr10}", "wb"))
             else:
                 early_stop += 1
                 if early_stop >= 5:
@@ -380,6 +360,6 @@ class ExpGraphTransformer(ExpBasic):
         logging.info(
             f"Best Val HR10: {100 * best_hr10:.4f}%\tHR50: {100 * best_hr50:.4f}%\tHR5: {100 * best_hr5:.4f}%\tndcg: {best_ndcg}")
 
-        torch.save(best_model_wts, self.config["model_best_wts_path"].format(self.config["data"], self.config["lorenz"],
+        torch.save(best_model_wts, self.config["model_best_wts_path"].format(self.config["data"], self.config["lorentz"],
                                                                              self.config["model"],
                                                                              self.config["dis_type"], best_hr10))

@@ -17,7 +17,7 @@ class LossFun(Module):
         self.triplets_dis = np.load(str(config["path_triplets_truth"]))
         self.lorentz = lorentz
 
-    def forward(self,embedding_a,embedding_p,embedding_n,batch_index, ids):
+    def forward(self,embedding_a, embedding_p,embedding_n,batch_index, ids):
         a_ids, p_ids, n_ids = ids
         batch_triplet_dis = self.triplets_dis[batch_index]
         batch_loss = 0.0
@@ -27,10 +27,12 @@ class LossFun(Module):
             D_ap = math.exp(-batch_triplet_dis[i][0])
             D_an = math.exp(-batch_triplet_dis[i][1])
 
-            v_ap_ = torch.exp(-torch.dist(embedding_a[i], embedding_p[i], p=2))
-            v_an_ = torch.exp(-torch.dist(embedding_a[i], embedding_n[i], p=2))
+            # v_ap_ = torch.exp(-torch.dist(embedding_a[i], embedding_p[i], p=2))
+            # v_an_ = torch.exp(-torch.dist(embedding_a[i], embedding_n[i], p=2))
 
-            if self.lorentz.lorenz == 0:
+            #--------- using lorentz distance instead of PairwiseDistance
+            ##########
+            if self.lorentz.lorentz == 0:
                 pairdist = PairwiseDistance(p=2)
                 v_ap = pairdist(embedding_a[i], embedding_p[i])
                 v_an = pairdist(embedding_a[i], embedding_n[i])
@@ -38,11 +40,16 @@ class LossFun(Module):
                 v_an = torch.exp(-v_an)
 
             else:
-                # dis_pred = self.lorenz.dist(anchor_trajs, traj_list)
-                v_ap = self.lorentz.learned_cmb_dist(embedding_a[i], embedding_p[i], traj_i=a_ids[i], traj_j=p_ids[i])
+                # dis_pred = self.lorentz.dist(anchor_trajs, traj_list)
+                a1,p1 = embedding_a[i].reshape(1,-1), embedding_p[i].reshape(1,-1)
+                v_ap = self.lorentz.learned_cmb_dist(a1, p1, traj_i=a_ids[i], traj_j=p_ids[i])
                 v_ap = torch.exp(-v_ap)
-                v_an = self.lorentz.learned_cmb_dist(embedding_a[i], embedding_n[i], traj_i=a_ids[i], traj_j=n_ids[i])
+                a1, n1 = embedding_a[i].reshape(1,-1), embedding_n[i].reshape(1,-1)
+                v_an = self.lorentz.learned_cmb_dist(a1, n1, traj_i=a_ids[i], traj_j=n_ids[i])
                 v_an = torch.exp(-v_an)
+            ##########
+            #---------
+
 
             loss_entire_ap = D_ap * ((D_ap - v_ap) ** 2)
             loss_entire_an = D_an * ((D_an - v_an) ** 2)

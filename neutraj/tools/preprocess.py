@@ -179,11 +179,12 @@ def trajectory_feature_generation(config,
     """
     # 拿到文件名称，这里应该是取数据集的名字
     path = config.base_data_path
-    print(config.config_to_str())
+    #print(config.config_to_str())
     config.fname: str = path.split('/')[-2]
     # 原作者提供的toy数据集使用的是python2的pickle所以需要指定encoding
     trajs: List[List[Tuple[float, float]]] = pickle.load(
         open(path, 'rb'), encoding='latin1')
+
     lons, lats = [], []
     for i, traj in enumerate(trajs):
         for point in traj:
@@ -192,7 +193,7 @@ def trajectory_feature_generation(config,
             lats.append(lat)
     lat_range[0], lat_range[1] = min(lats), max(lats)
     lon_range[0], lon_range[1] = min(lons), max(lons)
-    print(f"lat_range:{lat_range}, lon_range:{lon_range}")
+    #print(f"lat_range:{lat_range}, lon_range:{lon_range}")
     # 初始化工具类，注意这里的lon & lat range 来自本文件的头部的默认值，及北京的地理数据
     if config.fname == 'chengdu':
         delta = 0.0002
@@ -204,7 +205,7 @@ def trajectory_feature_generation(config,
         lat_delta = (lat_range[1] - lat_range[0]) / config.gird_size[0] + 1e-6
         lon_delta = (lon_range[1] - lon_range[0]) / config.gird_size[1] + 1e-6
         delta = max(lat_delta, lon_delta)
-        print(f"long data{config.fname} | delta:{delta}")
+        #print(f"long data{config.fname} | delta:{delta}")
     else:
         raise Exception("not support dataset")
     preprocessor = Preprocesser(
@@ -300,6 +301,6 @@ def trajectory_feature_generation(config,
     # 保存 (裁剪后的grid id序列集合,[],最长经过cell去重的坐标轨迹长度)
     pickle.dump((all_trajs_grids_xy, [], max_len), open(
         config.gridxypath, 'wb'))
-    print(f"store:{config.traj_index_path}|{config.corrdatapath}|{config.gridxypath}")
+    #print(f"store:{config.traj_index_path}|{config.corrdatapath}|{config.gridxypath}")
     # 最终返回的是cell去重坐标轨迹文件名称和数据集名称
     return config.corrdatapath, config.fname

@@ -3,7 +3,7 @@ import torch.nn as nn
 
 import sys
 sys.path.append('../')
-from lorenz.transfer import Lorenz
+from lorentz.transfer import Lorentz
 
 
 
@@ -11,10 +11,8 @@ class Traj2SimVecHandler(nn.Module):
     def __init__(self, cfg, trajs):
         super(Traj2SimVecHandler, self).__init__()
         self.traj2simvec = Traj2SimVec(cfg.dim)
-        #torch.save(self.state_dict(),'model_l0.h5')
-        #self.lorenz = Lorenz(base_model=[self.traj2simvec], dim=(2, 128), lorenz=cfg.lorenz, trajs=None, sqrt=cfg.sqrt)
-        #torch.save(self.state_dict(),'model_l1.h5')
-        self.lorenz = Lorenz(base_model=[self.traj2simvec], dim=(2, 128), lorenz=cfg.lorenz, trajs=trajs, sqrt=cfg.sqrt)
+
+        #self.lorentz = Lorentz(base_model=[self.traj2simvec], dim=(2, 128), lorentz=cfg.lorentz, trajs=trajs, sqrt=cfg.sqrt)
     def forward(self,x):
         return self.traj2simvec(x)
 
@@ -23,7 +21,7 @@ class Traj2SimVec(nn.Module):
     def __init__(self, dim):
         super(Traj2SimVec, self).__init__()
         # self.baselinear = nn.Linear(2, dim)
-        self.baseRNN = nn.LSTM(2, dim, 2, batch_first=True)
+        self.baseRNN = nn.LSTM(2, dim, 4, batch_first=True)
         self.subPart = subPart(dim)
         self.subPart2 = subPart2(dim*2)
 

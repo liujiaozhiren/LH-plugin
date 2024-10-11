@@ -1,4 +1,5 @@
 import pickle
+import argparse
 
 import numpy as np
 
@@ -40,6 +41,9 @@ def distance_comp(coor_path, data_name):
 
 if __name__ == '__main__':
     # 生成经过cell去重的轨迹列表和数据集的名称
+    parser = argparse.ArgumentParser(description="neutraj")
+
+    args = parser.parse_args()
 
     coor_pkl_path, data_name = preprocess.trajectory_feature_generation(path=config.base_data_path)
     # 计算距离

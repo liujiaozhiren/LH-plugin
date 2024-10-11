@@ -64,7 +64,7 @@ def test_comput_embeddings(self, spatial_net, test_batch=1025):
     return embeddings_list.cpu().numpy()
 
 
-def test_model(self, lorenz, traj_embeddings, test_range, print_batch=10, similarity=False, r10in50=False):
+def test_model(self, lorentz, traj_embeddings, test_range, print_batch=10, similarity=False, r10in50=False):
     top_10_count = 0
     l_top_10_count = 0
     top_50_count = 0
@@ -80,7 +80,7 @@ def test_model(self, lorenz, traj_embeddings, test_range, print_batch=10, simila
             # This is for the exp similarity
             # test_distance = [(j, float(np.exp(-np.sum(np.square(traj_embeddings[i] - e)))))
             #                  for j, e in enumerate(traj_embeddings)]
-            test_distance = [(j, float(np.exp(-lorenz.dist(traj_embeddings[i],e, config.lorenz))))
+            test_distance = [(j, float(np.exp(-lorentz.dist(traj_embeddings[i],e, config.lorentz))))
                                  for j, e in enumerate(traj_embeddings)]
 
             t_similarity = np.exp(-self.distance[i]

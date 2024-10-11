@@ -4,8 +4,10 @@ import random
 
 import numpy as np
 import yaml
-import warnings
 
+
+from utils.find_fn import find_best_weight_file
+import warnings
 warnings.filterwarnings("ignore")
 
 import torch
@@ -31,8 +33,8 @@ if __name__ == "__main__":
     parser.add_argument("-G", "--gpu", type=str, default="0")
     parser.add_argument("-L1", "--load-model", type=str, default=None)
     parser.add_argument("-J", "--just_embedding", action="store_true")
-    parser.add_argument("-L","--lorenz", type=float, default=0.0)
-    parser.add_argument("-c","--city", type=str, default='chengdu')
+    parser.add_argument("-L","--lorentz", type=float, default=0.0)
+    parser.add_argument("-c","--city", type=str, default='porto')
     parser.add_argument("-s","--sim", type=str, default='dtw')
     parser.add_argument("-q", "--sqrt", type=float, default=8.0)
     parser.add_argument("--lr", type=float, default=0.001)
@@ -40,7 +42,8 @@ if __name__ == "__main__":
     parser.add_argument('-r', '--ratio', type=float, default=1.0)
     args = parser.parse_args()
 
-    lorenz = args.lorenz
+
+    lorentz = args.lorentz
     city = args.city
     sim = args.sim
     lr = args.lr
@@ -48,7 +51,7 @@ if __name__ == "__main__":
 
     with open(args.config, "r") as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
-    config['lorenz'] = lorenz
+    config['lorentz'] = lorentz
     config['dis_type'] = sim
     config['data'] = city
     config['init_lr'] = lr
@@ -56,8 +59,10 @@ if __name__ == "__main__":
     config['sqrt'] = args.sqrt
     config['init'] = init
     config['train_data_range'][1]= int(config['train_data_range'][1] * args.ratio)
-    print("Args in experiment:")
-    print(config)
+
+
+    #print("Args in experiment:")
+    #print(config)
     # print("GPU:", args.gpu)
     # print("Load model:", args.load_model)
     # print("Store embeddings:", args.just_embedding, "\n")
@@ -65,7 +70,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG,
                         format="[%(filename)s:%(lineno)s %(funcName)s()] -> %(message)s",
                         handlers=[logging.FileHandler(
-                              f"./runs/{city}_{sim}_lorenz{lorenz}_{date}",
+                              f"./runs/{city}_{sim}_lorentz{lorentz}_{date}",
                             mode='w'), logging.StreamHandler()])
 
     if args.just_embedding:

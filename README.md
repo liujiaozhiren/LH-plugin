@@ -127,7 +127,7 @@ other args : using -q to specific \gamma args
 
 ## Data Preparation
 
-Here we provide a small-scale demo data for validation.
+Here we provide a small-scale demo data for you to start with, similarity matrix file is large, we recommend that you use https://github.com/bguillouet/traj-dist for calculation.
 
 To prepare your data for use with the LH-plugin, follow these instructions:
 
@@ -137,3 +137,8 @@ To prepare your data for use with the LH-plugin, follow these instructions:
 4. Modify the above file names in the config file of each model.
 
 For preprocessing data for the ST2Vec model, please refer to the instructions provided in `ST2Vec/README.md`.
+
+
+## Evaluation Requirements
+
+You may refer to the specific Embedding Model to build different environments. For details, please refer to their respective requirements.txt file.

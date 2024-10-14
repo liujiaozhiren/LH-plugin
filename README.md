@@ -4,7 +4,7 @@
 
 ## Introduction
 This repository showcases the LH-plugin currently. The LH-plugin has been adapted for use with the following models: TrajGAT, Neutraj, ST2Vec, and Traj2SimVec (with slight variations for each model). 
-For upcoming, we will pluginize the LH-plugin to adapt it for various trajectory similarity models and enhance its usability.
+For upcoming(now finished), we will pluginize the LH-plugin to adapt it for various trajectory similarity models and enhance its usability.
 
 ### 2024.10.11: Update
 We have integrated the usage of LH-plugin, and now it does not need to be customized and modified for different training methods of different models (it may cause you to misunderstand, thinking that we have made different optimizations for different models).

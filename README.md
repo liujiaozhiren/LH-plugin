@@ -2,6 +2,8 @@
 
 # LH-plugin
 
+The details of the proof process in the paper can be found in the [Technical_Report.pdf](Technical_Report.pdf).
+
 ## Introduction
 This repository showcases the LH-plugin currently. The LH-plugin has been adapted for use with the following models: TrajGAT, Neutraj, ST2Vec, and Traj2SimVec (with slight variations for each model). 
 For upcoming(now finished), we will pluginize the LH-plugin to adapt it for various trajectory similarity models and enhance its usability.

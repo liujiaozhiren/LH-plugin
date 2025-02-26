@@ -2,7 +2,7 @@
 
 # LH-plugin
 
-The details of the proof process in the paper can be found in the [Technical Report.pdf](technical-report(review).pdf)
+The details of the proof process in the paper can be found in the [technical-report(review).pdf](technical-report(review).pdf)
 
 ## Introduction
 This repository showcases the LH-plugin currently. The LH-plugin has been adapted for use with the following models: TrajGAT, Neutraj, ST2Vec, and Traj2SimVec (with slight variations for each model). 
